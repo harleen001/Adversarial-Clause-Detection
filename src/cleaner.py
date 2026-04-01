@@ -32,26 +32,26 @@ class LegalDataCleaner:
             raw_data = json.load(f)
 
         processed_chunks = []
-        for doc in raw_data:
+        # We use enumerate(raw_data) to get a unique doc_idx for each entry
+        for doc_idx, doc in enumerate(raw_data):
             clean_body = self.clean_text(doc['content'])
-            
-            # Create smaller chunks for the Vector DB
             chunks = self.text_splitter.split_text(clean_body)
             
             for i, chunk in enumerate(chunks):
+                # We add doc_idx to the ID to ensure "Entire Act_1" from file A 
+                # is different from "Entire Act_1" from file B
                 processed_chunks.append({
-                    "id": f"{doc['metadata']['title']}_{i}",
+                    "id": f"doc_{doc_idx}_chunk_{i}", 
                     "source": doc['metadata']['title'],
                     "text": chunk,
                     "timestamp": doc['timestamp']
                 })
 
-        # Save the "Silver Layer"
         output_path = os.path.join(self.output_dir, "cleaned_chunks.json")
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(processed_chunks, f, indent=4)
         
-        print(f"[✔] Cleaning Complete! Generated {len(processed_chunks)} AI-ready chunks.")
+        print(f"[✔] Cleaning Complete! Generated {len(processed_chunks)} unique AI-ready chunks.")
 
 if __name__ == "__main__":
     cleaner = LegalDataCleaner()
