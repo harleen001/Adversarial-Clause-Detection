@@ -1,87 +1,90 @@
-import requests
-from bs4 import BeautifulSoup
+import os
 import json
-import time
-from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict
+import asyncio
+from datetime import datetime
+from playwright.async_api import async_playwright
 
 class LegalDataIngestor:
     def __init__(self):
-        self.base_url = "https://www.indiacode.nic.in"
-        self.search_endpoint = f"{self.base_url}/handle/123456789/1/simple-search"
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Project: AdversarialClauseDetection/1.0; Contact: dev@firm.com)"
-        }
-        self.storage = []
+        # Switching to Indian Kanoon - much more stable for dev projects
+        self.base_url = "https://indiankanoon.org"
+        self.output_dir = os.path.join("data", "raw")
+        os.makedirs(self.output_dir, exist_ok=True)
 
-    def fetch_act_metadata(self, query: str = "Contract Act") -> List[Dict]:
-        """Fetch a list of Acts matching the query to get their unique handles."""
-        print(f"[INFO] Searching for: {query}...")
-        params = {"query": query, "itemsperpage": 10}
-        
-        try:
-            response = requests.get(self.search_endpoint, params=params, headers=self.headers)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.content, 'html.parser')
+    async def scrape_kanoon(self, query: str):
+        async with async_playwright() as p:
+            # Headless=True for speed, but you can set to False to watch
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            )
+            page = await context.new_page()
+
+            print(f"[➔] Querying Indian Kanoon: {query}")
+            search_url = f"{self.base_url}/search/?formInput={query.replace(' ', '+')}"
             
-            acts = []
-            # Selector for the search result table
-            table = soup.find('table', {'class': 'table'})
-            for row in table.find_all('tr')[1:]:  # Skip header
-                cols = row.find_all('td')
-                if len(cols) > 2:
-                    link = cols[1].find('a')['href']
-                    acts.append({
-                        "title": cols[1].text.strip(),
-                        "handle": link,
-                        "date": cols[0].text.strip()
-                    })
-            return acts
-        except Exception as e:
-            print(f"[ERROR] Metadata fetch failed: {e}")
-            return []
+            await page.goto(search_url, wait_until="networkidle")
 
-    def scrape_full_text(self, act_meta: Dict):
-        """Navigates to the Act page and extracts raw text."""
-        url = f"{self.base_url}{act_meta['handle']}"
-        print(f"[PROCESS] Ingesting: {act_meta['title']}")
-        
-        try:
-            res = requests.get(url, headers=self.headers)
-            soup = BeautifulSoup(res.content, 'html.parser')
+            # Extract result links
+            # Indian Kanoon search results are usually in div.result_title
+            acts_data = await page.evaluate("""() => {
+                const results = [];
+                const items = document.querySelectorAll('.result_title a');
+                items.forEach(item => {
+                    results.push({
+                        title: item.innerText.trim(),
+                        link: item.getAttribute('href')
+                    });
+                });
+                return results;
+            }""")
+
+            print(f"   [+] Found {len(acts_data)} results. Ingesting top matches...")
             
-            # Target the main body where the Act content resides
-            # Note: Many Indian sites use specific IDs for the viewer container
-            content = soup.find('div', {'id': 'view_section'}) 
-            raw_text = content.get_text(separator="\n") if content else "Content Not Found"
+            final_results = []
+            # We take the top 3 relevant results
+            for act in acts_data[:3]:
+                doc_url = f"{self.base_url}{act['link']}"
+                print(f"      [✓] Downloading: {act['title']}")
+                
+                await page.goto(doc_url, wait_until="domcontentloaded")
+                
+                # Indian Kanoon puts the main text in a div called 'judgement' or 'doc_body'
+                content = await page.evaluate("""() => {
+                    const doc = document.querySelector('.judgement') || document.querySelector('.doc_body') || document.body;
+                    return doc.innerText;
+                }""")
+                
+                final_results.append({
+                    "metadata": act,
+                    "content": content,
+                    "source": "Indian Kanoon",
+                    "timestamp": datetime.now().isoformat()
+                })
+                await asyncio.sleep(1) # Be polite to their servers
 
-            self.storage.append({
-                "metadata": act_meta,
-                "raw_content": raw_text,
-                "ingested_at": time.strftime("%Y-%m-%d %H:%M:%S")
-            })
-        except Exception as e:
-            print(f"[ERROR] Failed to scrape {act_meta['title']}: {e}")
+            await browser.close()
+            return final_results
 
-    def save_to_staging(self, filename="raw_legal_dump.json"):
-        """Saves ingested data to a local JSON file for the cleaning phase."""
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(self.storage, f, ensure_ascii=False, indent=4)
-        print(f"[SUCCESS] Stored {len(self.storage)} documents in {filename}")
+    def save_data(self, data, filename):
+        path = os.path.join(self.output_dir, filename)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        print(f"\n[✔] Project Ingestion Complete!")
+        print(f"[✔] Total legal docs stored: {len(data)}")
+        print(f"[✔] File Location: {path}")
 
-# --- Execution ---
-if __name__ == "__main__":
+async def main():
     ingestor = LegalDataIngestor()
+    # High-value targets for your 'Adversarial Clause' AI
+    queries = ["Indian Contract Act 1872", "Section 27 Contract Act", "Constitution of India"]
     
-    # Target high-impact laws for employment contracts
-    target_queries = ["Contract Act", "Constitution of India", "Industrial Disputes"]
+    all_results = []
+    for q in queries:
+        batch = await ingestor.scrape_kanoon(q)
+        all_results.extend(batch)
     
-    all_acts = []
-    for q in target_queries:
-        all_acts.extend(ingestor.fetch_act_metadata(q))
+    ingestor.save_data(all_results, "legal_knowledge_base.json")
 
-    # Parallel processing for efficiency
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        executor.map(ingestor.scrape_full_text, all_acts)
-
-    ingestor.save_to_staging()
+if __name__ == "__main__":
+    asyncio.run(main())
