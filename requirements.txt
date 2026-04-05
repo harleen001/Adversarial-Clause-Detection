@@ -1,0 +1,9 @@
+chromadb
+groq
+python-dotenv
+pdfplumber
+Pillow
+langchain-text-splitters
+sentence-transformers
+streamlit
+playwright
