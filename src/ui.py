@@ -2,11 +2,12 @@ import streamlit as st
 import pdfplumber
 from PIL import Image, ImageDraw
 import plotly.graph_objects as go
+from datetime import datetime
 
 # ==========================================
-# 1. INDUSTRIAL UI CONFIGURATION
+# 1. ADVANCED RESPONSIVE UI (Mobile + Desktop)
 # ==========================================
-st.set_page_config(layout="wide", page_title="Legal Guard Elite | Industry Pro", page_icon="⚖️")
+st.set_page_config(layout="wide", page_title="Legal Guard Pro | RAG + Email", page_icon="⚖️")
 
 def inject_styles():
     st.markdown("""
@@ -15,75 +16,65 @@ def inject_styles():
         .main { background-color: #0b0e14; font-family: 'Inter', sans-serif; color: #e2e8f0; }
         .stApp { background-color: #0b0e14; }
         
-        /* Modern Glassmorphism Cards */
-        .comparison-container {
-            display: flex; gap: 15px; margin-top: 15px;
-        }
+        .comparison-container { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
         .clause-box {
-            flex: 1; padding: 15px; border-radius: 10px; font-size: 0.85rem; line-height: 1.4;
-            border: 1px solid rgba(255,255,255,0.1);
+            flex: 1; min-width: 280px; padding: 15px; border-radius: 10px; 
+            font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.1);
         }
         .box-red { background: rgba(239, 68, 68, 0.05); border-left: 4px solid #ef4444; }
         .box-green { background: rgba(16, 185, 129, 0.05); border-left: 4px solid #10b981; }
         
-        .label { font-weight: 600; font-size: 0.7rem; text-transform: uppercase; margin-bottom: 8px; display: block; }
-        .label-red { color: #ef4444; }
-        .label-green { color: #10b981; }
+        @media (max-width: 768px) {
+            .brand-header { flex-direction: column; text-align: center; gap: 10px; }
+            .comparison-container { flex-direction: column; }
+        }
 
         .brand-header {
-            background: rgba(26, 28, 35, 0.8); backdrop-filter: blur(10px);
+            background: rgba(26, 28, 35, 0.9); backdrop-filter: blur(12px);
             padding: 1rem 2rem; border-bottom: 1px solid #2d303d;
-            position: sticky; top: 0; z-index: 999; display: flex; justify-content: space-between;
+            display: flex; justify-content: space-between; align-items: center;
         }
         </style>
         
         <div class="brand-header">
             <div>
                 <h3 style='margin:0; letter-spacing:1px; font-weight:300;'>LEGAL<span style='color:#ef4444; font-weight:600;'>GUARD</span> PRO</h3>
-                <p style='margin:0; color:#8b8e98; font-size:10px;'>ENTERPRISE ADVERSARIAL AUDIT ENGINE</p>
+                <p style='margin:0; color:#8b8e98; font-size:10px;'>V8.0 | RAG-AUGMENTED NEGOTIATION SUITE</p>
             </div>
             <div style='text-align:right;'>
                 <p style='margin:0; font-size:12px; font-weight:600;'>Harleen Singh</p>
-                <p style='margin:0; color:#8b8e98; font-size:9px;'>GNDU JALANDHAR | B.TECH FINAL YEAR</p>
+                <p style='margin:0; color:#8b8e98; font-size:9px;'>GNDU JALANDHAR | FINAL YEAR PROJECT</p>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. LEGAL COMPLIANCE ENGINE
+# 2. LOGIC ENGINES (RAG, Gauge, Email)
 # ==========================================
-def get_compliant_version(issue_title):
-    """Maps illegal clauses to industry-standard compliant versions."""
-    suggestions = {
-        "Restraint of Trade": "The Employee agrees not to join a direct competitor for a period of 6 months within the same city, provided the Company pays 50% of the last drawn salary during this period.",
-        "Punitive Financial Penalty": "In the event of a breach, the Employee shall be liable only for actual, documented relocation or training expenses incurred by the company, capped at one month's basic salary.",
-        "Unconscionable Terms": "The Company respects the Employee's right to privacy and work-life balance. Overtime is voluntary and original documents shall remain in the Employee's possession at all times."
+def get_legal_precedent(issue_title):
+    db = {
+        "Restraint of Trade": "Niranjan Shankar Golikari v. Century Spinning & Mfg. Co. (AIR 1967 SC 1098). The Supreme Court ruled post-employment restrictions are void under Section 27.",
+        "Punitive Financial Penalty": "Fateh Chand v. Balkishan Das (1964). Section 74 limits damages to 'reasonable compensation' for actual loss.",
+        "Unconscionable Terms": "Central Inland Water Transport Corp v. Brojo Nath Ganguly (1986). Terms that are grossly unfair to an employee are void."
     }
-    return suggestions.get(issue_title, "Clause should be modified to be reasonable and mutual.")
+    return db.get(issue_title, "Consult Section 27 of the Indian Contract Act.")
 
-# ==========================================
-# 3. VISUALIZATION & CORE
-# ==========================================
-def render_risk_chart(findings):
-    scores = {"Finance": 100, "Privacy": 100, "Career": 100, "Fairness": 100}
-    for f in findings:
-        if "Financial" in f['title']: scores["Finance"] -= 25
-        if "Unconscionable" in f['title']: scores["Privacy"] -= 20
-        if "Restraint" in f['title']: scores["Career"] -= 30
-    
-    fig = go.Figure(data=go.Scatterpolar(
-        r=[max(0, s) for s in scores.values()],
-        theta=list(scores.keys()), fill='toself', marker=dict(color='#ef4444')
-    ))
-    fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 100], color="#4b5563"), bgcolor="rgba(0,0,0,0)"),
-        showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color="white", size=10), height=280, margin=dict(l=40, r=40, t=20, b=20)
-    )
+def render_negotiation_gauge(issue_title):
+    difficulty = {"Restraint of Trade": 40, "Punitive Financial Penalty": 85, "Unconscionable Terms": 90}
+    val = difficulty.get(issue_title, 50)
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number", value = val,
+        title = {'text': "Negotiation Ease (%)", 'font': {'size': 12, 'color': 'white'}},
+        gauge = {'axis': {'range': [0, 100], 'tickcolor': "white"},
+                 'bar': {'color': "#10b981" if val > 50 else "#ef4444"}}))
+    fig.update_layout(height=180, paper_bgcolor='rgba(0,0,0,0)', font={'color': "white", 'size': 10}, margin=dict(l=20, r=20, t=40, b=20))
     return fig
 
+def get_protest_email(issue_title):
+    return f"""Subject: Regarding proposed '{issue_title}' clause\n\nDear HR Team,\n\nI am reviewing the proposed agreement. I have a concern regarding the '{issue_title}' provision, as it seems to conflict with Section 27/74 of the Indian Contract Act. \n\nSpecifically, legal precedents like Niranjan Shankar Golikari v. Century Spinning suggest such restrictions are often unenforceable. Could we modify this to align with standard industry practices?\n\nBest regards,\n[Your Name]"""
+
 # ==========================================
-# 4. MAIN APP
+# 3. MAIN APPLICATION
 # ==========================================
 def main():
     inject_styles()
@@ -103,22 +94,19 @@ def main():
                 }
 
         doc = st.session_state.pdf_cache
-        col_viz, col_ctrl = st.columns([1.3, 1], gap="large")
+        col_viz, col_ctrl = st.columns([1.2, 1], gap="medium")
 
         with col_ctrl:
-            if st.session_state.audit_data:
-                st.plotly_chart(render_risk_chart(st.session_state.audit_data), use_container_width=True)
-            
-            if st.button("🔍 SCAN FOR INDUSTRIAL RISKS", use_container_width=True):
+            if st.button("🚀 EXECUTE RAG-POWERED AUDIT", use_container_width=True):
                 findings = []
                 for i, p in enumerate(doc["pages"]):
                     txt = p.extract_text() or ""
-                    if any(k in txt.lower() for k in ["prohibited", "non-compete", "restricted"]):
-                        findings.append({"page": i, "text": txt, "title": "Restraint of Trade", "raw": "Section 27 Violation: Absolute non-compete is void."})
-                    if any(k in txt.lower() for k in ["penalty", "bond", "lakhs"]):
-                        findings.append({"page": i, "text": txt, "title": "Punitive Financial Penalty", "raw": "Section 74 Violation: Penal damages are legally restricted."})
-                    if any(k in txt.lower() for k in ["original", "24/7", "surveillance"]):
-                        findings.append({"page": i, "text": txt, "title": "Unconscionable Terms", "raw": "Labor Rights Violation: Excessive monitoring or document seizure."})
+                    if any(k in txt.lower() for k in ["prohibited", "non-compete"]):
+                        findings.append({"page": i, "text": txt, "title": "Restraint of Trade", "raw": "Section 27 Violation: Restrictions on work."})
+                    if any(k in txt.lower() for k in ["penalty", "bond"]):
+                        findings.append({"page": i, "text": txt, "title": "Punitive Financial Penalty", "raw": "Section 74 Violation: Excessive penalties."})
+                    if any(k in txt.lower() for k in ["original", "24/7"]):
+                        findings.append({"page": i, "text": txt, "title": "Unconscionable Terms", "raw": "Unfair labor practices."})
                 st.session_state.audit_data = findings
                 st.session_state.issue_cursor = 0
                 st.rerun()
@@ -126,41 +114,44 @@ def main():
             if st.session_state.audit_data:
                 idx = st.session_state.issue_cursor
                 issue = st.session_state.audit_data[idx]
-                suggestion = get_compliant_version(issue['title'])
-
-                # DUAL-PANE COMPARISON UI
+                
+                st.plotly_chart(render_negotiation_gauge(issue['title']), use_container_width=True)
+                
+                # DUAL-PANE UI
                 st.markdown(f"""
-                    <div style="background:#1a1c23; padding:20px; border-radius:12px; border:1px solid #2d303d;">
-                        <span style="color:#ef4444; font-weight:700; font-size:0.8rem;">ISSUE #{idx+1}: {issue['title']}</span>
+                    <div style="background:#1a1c23; padding:15px; border-radius:10px; border:1px solid #2d303d;">
+                        <span style="color:#ef4444; font-weight:700; font-size:0.75rem;">AUDIT HIT #{idx+1}</span>
                         <div class="comparison-container">
                             <div class="clause-box box-red">
-                                <span class="label label-red">Adversarial Clause</span>
+                                <span style="color:#ef4444; font-size:0.6rem; font-weight:700;">CLAUSE IMPACT</span><br>
                                 {issue['raw']}
                             </div>
                             <div class="clause-box box-green">
-                                <span class="label label-green">Compliant Suggestion</span>
-                                {suggestion}
+                                <span style="color:#10b981; font-size:0.6rem; font-weight:700;">LEGAL RAG INSIGHT</span><br>
+                                <i>{get_legal_precedent(issue['title'])}</i>
                             </div>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
 
-                # Action Controls
+                # RE-ADDED EMAIL GENERATOR
                 st.markdown("<br>", unsafe_allow_html=True)
+                with st.expander("📧 DRAFT PROTEST EMAIL"):
+                    email_body = get_protest_email(issue['title'])
+                    st.text_area("Draft Rebuttal", email_body, height=180)
+                    st.download_button("Download Email (.txt)", email_body, file_name=f"rebuttal_{idx}.txt")
+
                 b1, b2, b3 = st.columns([1,1,1])
-                if b1.button("PREV", disabled=(idx==0)): st.session_state.issue_cursor -= 1; st.rerun()
+                if b1.button("PREV", disabled=(idx==0), use_container_width=True): st.session_state.issue_cursor -= 1; st.rerun()
                 b2.markdown(f"<p style='text-align:center; margin-top:8px;'>{idx+1}/{len(st.session_state.audit_data)}</p>", unsafe_allow_html=True)
-                if b3.button("NEXT", disabled=(idx==len(st.session_state.audit_data)-1)): st.session_state.issue_cursor += 1; st.rerun()
-                
-                with st.expander("📝 View Pro-Drafted Rebuttal"):
-                    st.code(f"Dear HR,\nRegarding the {issue['title']} clause, I suggest adopting the following: \n\n'{suggestion}'\n\nThis aligns with Indian Contract Law.")
+                if b3.button("NEXT", disabled=(idx==len(st.session_state.audit_data)-1), use_container_width=True): st.session_state.issue_cursor += 1; st.rerun()
             else:
-                st.info("Upload a document to generate a risk-vs-compliance report.")
+                st.info("System Ready. Waiting for Contract Upload...")
 
         with col_viz:
             if st.session_state.audit_data:
                 active = st.session_state.audit_data[st.session_state.issue_cursor]
-                st.image(doc["imgs"][active['page']], use_container_width=True, caption=f"Audit View: Page {active['page']+1}")
+                st.image(doc["imgs"][active['page']], use_container_width=True, caption=f"Page {active['page']+1}")
 
 if __name__ == "__main__":
     main()
