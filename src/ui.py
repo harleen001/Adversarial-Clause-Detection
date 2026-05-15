@@ -424,39 +424,51 @@ def show_auth_screen():
 
         with tab_in:
             st.markdown("<br>", unsafe_allow_html=True)
+            # Show login feedback OUTSIDE the form
+            if st.session_state.get("login_error"):
+                st.error(st.session_state.pop("login_error"))
             with st.form("login_form"):
                 email    = st.text_input("Email", placeholder="you@example.com")
                 password = st.text_input("Password", type="password", placeholder="••••••••")
-                if st.form_submit_button("Sign In →", use_container_width=True):
-                    if email and password:
-                        user = db_login(email, password)
-                        if user:
-                            st.session_state.user        = user
-                            st.session_state.audit_hits  = []
-                            st.session_state.idx         = 0
-                            st.rerun()
-                        else:
-                            st.error("Incorrect email or password.")
+                submitted = st.form_submit_button("Sign In →", use_container_width=True)
+            if submitted:
+                if email and password:
+                    user = db_login(email, password)
+                    if user:
+                        st.session_state.user       = user
+                        st.session_state.audit_hits = []
+                        st.session_state.idx        = 0
+                        st.rerun()
                     else:
-                        st.warning("Please enter email and password.")
+                        st.session_state["login_error"] = "Incorrect email or password."
+                        st.rerun()
+                else:
+                    st.session_state["login_error"] = "Please enter email and password."
+                    st.rerun()
 
         with tab_up:
             st.markdown("<br>", unsafe_allow_html=True)
+            # Show signup feedback OUTSIDE the form
+            if st.session_state.get("signup_msg"):
+                msg, kind = st.session_state.pop("signup_msg")
+                st.success(msg) if kind == "ok" else st.error(msg)
             with st.form("signup_form"):
                 name     = st.text_input("Full Name", placeholder="Harleen Singh")
                 email2   = st.text_input("Email", placeholder="you@example.com")
                 pass1    = st.text_input("Password", type="password", placeholder="Min 6 characters")
                 pass2    = st.text_input("Confirm Password", type="password", placeholder="Repeat password")
-                if st.form_submit_button("Create Account →", use_container_width=True):
-                    if not all([name, email2, pass1, pass2]):
-                        st.warning("Please fill in all fields.")
-                    elif len(pass1) < 6:
-                        st.warning("Password must be at least 6 characters.")
-                    elif pass1 != pass2:
-                        st.error("Passwords do not match.")
-                    else:
-                        ok, msg = db_create_user(name, email2, pass1)
-                        st.success(msg) if ok else st.error(msg)
+                submitted2 = st.form_submit_button("Create Account →", use_container_width=True)
+            if submitted2:
+                if not all([name, email2, pass1, pass2]):
+                    st.session_state["signup_msg"] = ("Please fill in all fields.", "err")
+                elif len(pass1) < 6:
+                    st.session_state["signup_msg"] = ("Password must be at least 6 characters.", "err")
+                elif pass1 != pass2:
+                    st.session_state["signup_msg"] = ("Passwords do not match.", "err")
+                else:
+                    ok, msg = db_create_user(name, email2, pass1)
+                    st.session_state["signup_msg"] = (msg, "ok" if ok else "err")
+                st.rerun()
 
 
 # ==========================================
@@ -464,37 +476,134 @@ def show_auth_screen():
 # ==========================================
 def show_sidebar(user):
     with st.sidebar:
+        # ── User info ──
         st.markdown(f"""
-            <div style="padding:16px 0 8px 0;">
-                <p style="font-size:0.68rem;color:#999;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Signed in as</p>
+            <div style="padding:16px 0 4px 0;">
+                <p style="font-size:0.65rem;color:#999;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Signed in as</p>
                 <p style="font-weight:700;color:#1a1a1a;font-size:0.95rem;margin:0;">{user['name']}</p>
-                <p style="font-size:0.75rem;color:#888;margin:2px 0 16px 0;">{user['email']}</p>
+                <p style="font-size:0.72rem;color:#888;margin:2px 0 12px 0;">{user['email']}</p>
             </div>
         """, unsafe_allow_html=True)
 
+        # ── Nav buttons ──
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("🏠 Dashboard", use_container_width=True):
+                st.session_state.pop("view_history", None)
+                st.rerun()
+        with col_b:
+            if st.button("📋 History", use_container_width=True):
+                st.session_state["view_history"] = True
+                st.rerun()
+
         if st.button("⬅  Sign Out", use_container_width=True):
-            for k in ["user", "audit_hits", "idx"]:
-                st.session_state.pop(k, None)
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
             st.rerun()
 
         st.markdown("---")
-        st.markdown('<p style="font-size:0.68rem;color:#999;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">📋 Audit History</p>', unsafe_allow_html=True)
 
+        # ── Mini history list in sidebar ──
+        st.markdown('<p style="font-size:0.65rem;color:#999;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;">Recent Audits</p>', unsafe_allow_html=True)
         audits = db_get_audits(user["id"])
         if not audits:
-            st.markdown('<p style="color:#bbb;font-size:0.82rem;font-style:italic;">No audits yet.</p>', unsafe_allow_html=True)
+            st.markdown('<p style="color:#bbb;font-size:0.8rem;font-style:italic;">No audits yet.</p>', unsafe_allow_html=True)
         else:
-            for a in audits[:15]:
-                dt     = datetime.fromisoformat(a["created_at"]).strftime("%d %b %Y, %I:%M %p")
-                n      = a["issues_found"]
-                color  = "#e74c3c" if n > 0 else "#2ecc71"
-                label  = f"{n} issue{'s' if n != 1 else ''}"
+            for a in audits[:8]:
+                dt    = datetime.fromisoformat(a["created_at"]).strftime("%d %b %Y")
+                n     = a["issues_found"]
+                color = "#e74c3c" if n > 0 else "#2ecc71"
                 st.markdown(f"""
                     <div class="hist-card">
                         <p class="hc-name">📄 {a['filename']}</p>
-                        <p class="hc-meta">{dt} &nbsp;·&nbsp; <span style="color:{color};font-weight:600;">{label}</span> &nbsp;·&nbsp; {a['page_count']}p</p>
+                        <p class="hc-meta">{dt} &nbsp;·&nbsp; <span style="color:{color};font-weight:600;">{n} issue{"s" if n!=1 else ""}</span> · {a['page_count']}p</p>
                     </div>
                 """, unsafe_allow_html=True)
+            if len(audits) > 8:
+                st.markdown(f'<p style="font-size:0.72rem;color:#aaa;text-align:center;">+{len(audits)-8} more — click History</p>', unsafe_allow_html=True)
+
+
+# ==========================================
+# FULL HISTORY PAGE
+# ==========================================
+def show_history_page(user):
+    audits = db_get_audits(user["id"])
+
+    st.markdown(f"""
+        <div class="greeting-section">
+            <h1>📋 Audit History</h1>
+            <p>All {len(audits)} contract audit{"s" if len(audits)!=1 else ""} for {user['name']}</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    if not audits:
+        st.markdown("""
+            <div class="dash-card" style="text-align:center;padding:60px 40px;">
+                <p style="font-size:3rem;margin-bottom:12px;">📭</p>
+                <h3 style="color:#1a1a1a;font-weight:600;margin-bottom:8px;">No audits yet</h3>
+                <p style="color:#888;font-size:0.9rem;">Go back to the dashboard and upload a contract PDF to begin.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        return
+
+    # ── Summary stats ──
+    total_audits  = len(audits)
+    total_issues  = sum(a["issues_found"] for a in audits)
+    total_pages   = sum(a["page_count"] or 0 for a in audits)
+    clean_docs    = sum(1 for a in audits if a["issues_found"] == 0)
+
+    c1, c2, c3, c4 = st.columns(4)
+    for col, num, label, color in [
+        (c1, total_audits, "Total Audits",   "#1a1a1a"),
+        (c2, total_issues, "Issues Found",   "#e74c3c"),
+        (c3, total_pages,  "Pages Scanned",  "#1a1a1a"),
+        (c4, clean_docs,   "Clean Docs",     "#2ecc71"),
+    ]:
+        col.markdown(f"""
+            <div class="stat-box">
+                <div class="num" style="color:{color};">{num}</div>
+                <div class="label">{label}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Full audit table ──
+    for a in audits:
+        dt         = datetime.fromisoformat(a["created_at"]).strftime("%d %B %Y · %I:%M %p")
+        n          = a["issues_found"]
+        badge_col  = "#e74c3c" if n > 0 else "#2ecc71"
+        badge_text = f"{n} issue{'s' if n!=1 else ''}"
+
+        # Parse issues JSON
+        try:
+            issues = json.loads(a["issues_json"] or "[]")
+        except Exception:
+            issues = []
+
+        with st.expander(f"📄  {a['filename']}  ·  {dt}  ·  {badge_text}", expanded=False):
+            col_l, col_r = st.columns([1, 2])
+            with col_l:
+                st.markdown(f"""
+                    <div style="display:flex;flex-direction:column;gap:10px;padding-right:20px;">
+                        <div class="stat-box"><div class="num" style="color:{badge_col};">{n}</div><div class="label">Issues</div></div>
+                        <div class="stat-box"><div class="num">{a['page_count']}</div><div class="label">Pages</div></div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            with col_r:
+                if not issues:
+                    st.markdown('<p style="color:#2ecc71;font-weight:600;font-size:0.85rem;">✅ No adversarial clauses detected</p>', unsafe_allow_html=True)
+                else:
+                    for iss in issues:
+                        ctx = get_legal_context(iss["title"])
+                        st.markdown(f"""
+                            <div class="issue-card" style="margin-bottom:10px;">
+                                <b>⚠️ {iss['title']}</b>
+                                <p>Detected on <b>Page {iss['pg']}</b></p>
+                                <p style="color:#888;font-size:0.75rem;margin-top:4px;">⚖️ {ctx['precedent']}</p>
+                            </div>
+                        """, unsafe_allow_html=True)
 
 
 # ==========================================
@@ -514,6 +623,12 @@ def main():
         st.session_state.audit_hits = []
     if "idx" not in st.session_state:
         st.session_state.idx = 0
+
+    # ── Route to history page if requested ─────
+    if st.session_state.get("view_history"):
+        render_header(user)
+        show_history_page(user)
+        return
 
     render_header(user)
 
