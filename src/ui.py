@@ -28,6 +28,12 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "legal_guard.
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    # Safe migration: add phone column if it doesn't exist yet
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN phone TEXT")
+        conn.commit()
+    except Exception:
+        pass
     return conn
 
 def init_db():
@@ -37,9 +43,12 @@ def init_db():
             id          TEXT PRIMARY KEY,
             name        TEXT NOT NULL,
             email       TEXT UNIQUE NOT NULL,
+            phone       TEXT,
             password    TEXT NOT NULL,
             created_at  TEXT NOT NULL
         );
+        -- Add phone column if upgrading existing DB
+        CREATE TABLE IF NOT EXISTS _migration_done (id INTEGER PRIMARY KEY);
         CREATE TABLE IF NOT EXISTS audits (
             id           TEXT PRIMARY KEY,
             user_id      TEXT NOT NULL,
@@ -57,12 +66,12 @@ def init_db():
 def hash_pw(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()
 
-def db_create_user(name, email, password):
+def db_create_user(name, email, phone, password):
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO users (id,name,email,password,created_at) VALUES (?,?,?,?,?)",
-            (str(uuid.uuid4()), name, email.lower().strip(), hash_pw(password), datetime.now().isoformat())
+            "INSERT INTO users (id,name,email,phone,password,created_at) VALUES (?,?,?,?,?,?)",
+            (str(uuid.uuid4()), name, email.lower().strip(), phone.strip(), hash_pw(password), datetime.now().isoformat())
         )
         conn.commit()
         return True, "Account created! Please sign in."
@@ -455,18 +464,19 @@ def show_auth_screen():
             with st.form("signup_form"):
                 name     = st.text_input("Full Name", placeholder="Harleen Singh")
                 email2   = st.text_input("Email", placeholder="you@example.com")
+                phone    = st.text_input("Mobile Number", placeholder="+91 98765 43210")
                 pass1    = st.text_input("Password", type="password", placeholder="Min 6 characters")
                 pass2    = st.text_input("Confirm Password", type="password", placeholder="Repeat password")
                 submitted2 = st.form_submit_button("Create Account →", use_container_width=True)
             if submitted2:
-                if not all([name, email2, pass1, pass2]):
+                if not all([name, email2, phone, pass1, pass2]):
                     st.session_state["signup_msg"] = ("Please fill in all fields.", "err")
                 elif len(pass1) < 6:
                     st.session_state["signup_msg"] = ("Password must be at least 6 characters.", "err")
                 elif pass1 != pass2:
                     st.session_state["signup_msg"] = ("Passwords do not match.", "err")
                 else:
-                    ok, msg = db_create_user(name, email2, pass1)
+                    ok, msg = db_create_user(name, email2, phone, pass1)
                     st.session_state["signup_msg"] = (msg, "ok" if ok else "err")
                 st.rerun()
 
@@ -477,11 +487,13 @@ def show_auth_screen():
 def show_sidebar(user):
     with st.sidebar:
         # ── User info ──
+        phone_display = user.get('phone') or ''
         st.markdown(f"""
             <div style="padding:16px 0 4px 0;">
                 <p style="font-size:0.65rem;color:#999;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">Signed in as</p>
                 <p style="font-weight:700;color:#1a1a1a;font-size:0.95rem;margin:0;">{user['name']}</p>
-                <p style="font-size:0.72rem;color:#888;margin:2px 0 12px 0;">{user['email']}</p>
+                <p style="font-size:0.72rem;color:#888;margin:1px 0 0 0;">{user['email']}</p>
+                <p style="font-size:0.72rem;color:#888;margin:1px 0 12px 0;">{phone_display}</p>
             </div>
         """, unsafe_allow_html=True)
 
